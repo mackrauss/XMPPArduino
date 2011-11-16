@@ -4,8 +4,6 @@
 #include <Ethernet.h>
 #include <avr/pgmspace.h>
 
-//typedef uint8_t byte;
-
 enum XMPPState {
   INIT,
   AUTH,
@@ -17,9 +15,8 @@ enum XMPPState {
 };
 
 class XMPPClientClass {
-
 private:
-	static Client client;
+	Client *client;
 	char *username;
 	char *server;
 	char *password;
@@ -37,8 +34,9 @@ private:
 public:
 	XMPPClientClass();
 	int begin(byte* macAddr);
-	// int connect(char *username, char *server, char *resource, char *password);
-	// int connect(char *jid, char *password);
+	void connect(char *username, char *server, char *resource, char *password);
+	void connect(char *jid, char *password);
+	void maintain();
 	// int sendMessage(char *recipientJid, char *message);
 	// int sendPresence();
 	// int close();
