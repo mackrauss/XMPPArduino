@@ -65,6 +65,19 @@ XMPPTransitionTableEntry connTable[] = {{INIT, AUTH, "PLAIN"},
                                         {READY, WAIT, ""},
                                         {WAIT, WAIT, ""}};
 
+/************************/
+/* STRING COPY FUNCTION */
+/************************/
+void strcpyuntil(char *dest, char *src, char *end) {
+	while(src != end) 
+		*dest++ = *src++;
+	*dest = '\0';
+}
+
+
+/*****************/
+/* CLASS METHODS */
+/*****************/
 XMPPClient::XMPPClient() : client(0) {
     ;
 }
@@ -160,23 +173,47 @@ int XMPPClient::sendMessage(char *recipientJid, char *message) {
 
 char* XMPPClient::receiveMessage() {
 	int bufLen = 1000;
+	int mesLen = 1000;
 	char buffer[bufLen];
+	char message[mesLen];
 	int i = 0;
 	int nChar = client.available();
+	// If text is not empty or too long, read it
 	if(nChar > 0 && nChar < bufLen) {
       	for(i = 0 ; i < nChar; i++)
       		buffer[i] = client.read(); 
 		// Terminate the string
 		buffer[nChar] = '\0';
-      	/* Ignore what we've read if it's an empty string */
       	if(!strlen(buffer)) {
+			// Ignore what we've read if it's an empty string
 			return NULL;
       	} else {
-        Serial.println(buffer);
-		Serial.println();
+			// Check that what we received is a message
+			char tag1[] = "<message";
+			char buf2[9];
+			strncpy(buf2, buffer, 8);
+			buf2[8] = '\0';
+			if (strcmp(tag1, buf2) != 0) {
+				// Ignore what we received
+			} else {
+				// Parse the message
+				Serial.println(buffer);
+				Serial.println();
+				// char tag2[] = "<body>";
+				// char tag3[] = "</body>";
+				// char * startIndex = strstr(buffer, tag2);  
+				// char * endIndex = strstr(buffer, tag3);
+				// if (startIndex != NULL && endIndex != NULL) {
+				// 	// Copy whatever is within the two body tags to message
+				// 	strcpyuntil(message, startIndex, endIndex);
+				// 	
+				// 	Serial.println(message);
+				// 	Serial.println();
+				// } 
+			}
       	}
 	}
-	return buffer;
+	return message;
 }
 
 int XMPPClient::sendPresence() {
