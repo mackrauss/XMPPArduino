@@ -176,9 +176,11 @@ int XMPPClient::sendPresence() {
 }
 
 
-void XMPPClient::please() {
+char * XMPPClient::please() {
 	int bufLen = 1000;
+	int msgLen = 100;
 	char buffer[bufLen];
+	char msg[100] = "";
 	int nChar = client.available();
 	if (nChar > 0 && nChar < bufLen) {
 		int i = 0;
@@ -198,21 +200,20 @@ void XMPPClient::please() {
  				// Ignore what we received
  			} else {
  				// Parse the message
-				char * startIndex = strstr(buffer, "<body>");
-				Serial.println(startIndex);
-				// char message[bufLen];
-				// 			int j=0;
-				// 			while (startIndex[j] != '>') {
-				// 				message[j] = startIndex[j];
-				// 				j++;
-				// 			}
-				// 			message[j] = '\0';
-				// 			Serial.println();
-				// 			Serial.println();
-				// 			Serial.println(message);
+				char *startIndex = strstr(buffer, "<body>");
+				startIndex = startIndex + 6;
+				char *ptrMsg;
+				ptrMsg = msg; 
+				while (*startIndex != '<') {
+					*ptrMsg = *startIndex;
+					ptrMsg++;
+					startIndex++;
+				}
+				*ptrMsg = '\0';
 			}
 		}
 	}
+	return msg;
 }
 
 int XMPPClient::close() {
