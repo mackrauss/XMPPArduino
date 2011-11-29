@@ -1,4 +1,18 @@
+#include <string.h>
+#include <stdarg.h>
+#include <Base64.h>
+#include <EthernetDHCP.h>
+#include <EthernetDNS.h>
+
 #include "XMPPClient.h"
+
+
+// Just a utility function to nicely format an IP address.								// REMOVE!!!!
+char* ip_to_str(const uint8_t* ipAddr) {
+  static char buf[16];
+  sprintf(buf, "%d.%d.%d.%d\0", ipAddr[0], ipAddr[1], ipAddr[2], ipAddr[3]);
+  return buf;
+}
 
 /****************/
 /* XMPP STANZAS */
@@ -47,6 +61,7 @@ static const prog_char PROGMEM message_template[] = "<message "
 static const prog_char PROGMEM close_template[] = "<presence type='unavailable'/>"
 			 "</stream:stream>";
 
+
 /********************/
 /* TRANSITION TABLE */
 /********************/
@@ -65,68 +80,85 @@ XMPPTransitionTableEntry connTable[] = {{INIT, AUTH, "PLAIN"},
                                         {READY, WAIT, ""},
                                         {WAIT, WAIT, ""}};
 
-XMPPClient::XMPPClient() : client(0) {
-    ;
+/*****************/
+/* CLASS METHODS */
+/*****************/
+
+XMPPClientClass::XMPPClientClass() {
 }
 
-XMPPClient::XMPPClient(uint8_t *ip, uint16_t port) : client(ip, port) {
-    ;
+// return values:
+// 1 on success
+// 0 on error
+int XMPPClientClass::begin(byte* macAddr) {
+	if (EthernetDHCP.begin(macAddr)==1) {
+		const byte* myAddr = EthernetDHCP.ipAddress();
+		byte myIP[] = {myAddr[0], myAddr[1], myAddr[2], myAddr[3]};
+		Ethernet.begin(macAddr, myIP);
+		EthernetDNS.setDNSServer(EthernetDHCP.dnsIpAddress());
+		return 1;
+	};
+	return 0;
 }
 
-int XMPPClient::connect(char *username, char *server, char *resource, char *password) {
+
+void XMPPClientClass::connect(char *username, char *server, char *resource, char *password) {
+	// Resolve server HostName
+	byte dnsLookupAddr[4];
+	DNSError err = EthernetDNS.resolveHostName(server, dnsLookupAddr);
+    if (DNSSuccess != err) {
+		Serial.print("Impossible to resolve HostName!");
+		return;
+  	}
+	// Initialize connection parameters
     boolean connected = false, error = false;
     this->username = username;
-    this->server = server;
+    this->server = ip_to_str(dnsLookupAddr);
     this->resource = resource;
-    this->password = password;
-
-    while(!client.connect()) {
-	/* Retry connection every 1s and block until we're successful */
-	delay(1000);
-    }
-
-    while(!connected && !error) {
-	/* Connect dat shit^H^H^H^Hcuss */
-	if(!client.connected()) {
-	    error = true;
-	    continue;
+	this->password = password;
+	Client tmpClient(dnsLookupAddr, 5222);
+	*client = tmpClient;
+	// Connect to server
+	while(!client->connected()) {
+		client->connect();
 	}
-
-	int ret;
-	ret = stateAction();
-
-	if(ret == -1) {
-	    error = true;
-	}
-
-	if(ret == 1) {
-	    connected = true;
-	}
-
-	if(ret) {
-	    continue;
-	}
-
-	processInput();
-    }
-
-    if(error || !connected) {
-	return 0;
-    } else {
-	return 1;
-    }
+	Serial.println("Connected to server");
 }
 
-int XMPPClient::connect(char *jid, char *password) {
-    /* Split the JID */
-    /* Call connect(char*,char*,char*,char*) */
+
+
+void XMPPClientClass::connect(char *jid, char *password) {
+	char * pch = strtok(jid,"@");
+	char * username, *server;
+	username = pch;
+	pch = strtok (NULL, "@");
+	server = pch;
+	connect(username, server, "arduinoEthernet", password);
 }
 
-int XMPPClient::openStream(char *server) {
+void XMPPClientClass::maintain() {
+	EthernetDHCP.maintain();
+	// Check for disconnection from XMPP server
+	// Send ping!!!
+}
+
+// int XMPPClient::sendMessage(char *recipientJid, char *message) {
+//   sendTemplate(message_template, strlen(recipientJid) + strlen(message), recipientJid, message);
+// }
+// 
+// int XMPPClient::sendPresence() {
+//   sendTemplate(presence_template, 0);
+// }
+// 
+// int XMPPClient::close() {
+//   sendTemplate(close_template, 0);
+// }
+
+int XMPPClientClass::openStream(char *server) {
     sendTemplate(open_stream_template, strlen(server), server);
 }
 
-int XMPPClient::authenticate(char *username, char *password) {
+int XMPPClientClass::authenticate(char *username, char *password) {
   int plainStringLen = strlen(username) + strlen(password) + 2;
   int encStringLen = base64_enc_len(plainStringLen);
   char plainString[plainStringLen];
@@ -145,49 +177,15 @@ int XMPPClient::authenticate(char *username, char *password) {
   sendTemplate(plain_auth_template, encStringLen, encString);
 }
 
-int XMPPClient::bindResource(char *resource) {
+int XMPPClientClass::bindResource(char *resource) {
   sendTemplate(bind_template, strlen(resource), resource);
 }
 
-int XMPPClient::openSession(char *server) {
+int XMPPClientClass::openSession(char *server) {
   sendTemplate(session_request_template, strlen(server), server);
 }
 
-int XMPPClient::sendMessage(char *recipientJid, char *message) {
-  sendTemplate(message_template, strlen(recipientJid) + strlen(message), recipientJid, message);
-}
-
-
-char* XMPPClient::receiveMessage() {
-	int bufLen = 1000;
-	char buffer[bufLen];
-	int i = 0;
-	int nChar = client.available();
-	if(nChar > 0 && nChar < bufLen) {
-      	for(i = 0 ; i < nChar; i++)
-      		buffer[i] = client.read(); 
-		// Terminate the string
-		buffer[nChar] = '\0';
-      	/* Ignore what we've read if it's an empty string */
-      	if(!strlen(buffer)) {
-			return NULL;
-      	} else {
-        Serial.println(buffer);
-		Serial.println();
-      	}
-	}
-	return buffer;
-}
-
-int XMPPClient::sendPresence() {
-  sendTemplate(presence_template, 0);
-}
-
-int XMPPClient::close() {
-  sendTemplate(close_template, 0);
-}
-
-int XMPPClient::sendTemplate(const prog_char *temp_P, int fillLen, ...) {
+int XMPPClientClass::sendTemplate(const prog_char *temp_P, int fillLen, ...) {
   int tempLen = strlen_P(temp_P);
   char temp[tempLen];
   char buffer[tempLen + fillLen];
@@ -197,16 +195,13 @@ int XMPPClient::sendTemplate(const prog_char *temp_P, int fillLen, ...) {
 
   va_start(args, fillLen);
   vsprintf(buffer, temp, args);
-  client.write(buffer);
+  client->write(buffer);
 
   return 1;
 }
 
-int XMPPClient::stateAction() {
- /*
- Serial.print("State = ");
- Serial.println(state);
- */
+int XMPPClientClass::stateAction() {
+
  switch(state) {
   case INIT:
     openStream(server);
@@ -235,14 +230,13 @@ int XMPPClient::stateAction() {
  return 0;
 }
 
-void XMPPClient::processInput() {
+void XMPPClientClass::processInput() {
   int bufLen = 8;
   char buffer[bufLen];
   int i = 0;
   memset(buffer, '\0', bufLen);
   boolean stateChanged = false;
-
-  if(!client.connected()) {
+  if(!client->connected()) {
     state = WAIT;
     return;
   }
@@ -250,19 +244,19 @@ void XMPPClient::processInput() {
   // TODO: This process is pretty inefficient and naively implemented
   // It might be an idea to rewrite it cleverer
   while(!stateChanged) {
-    if(client.available()) {
+    if(client->available()) {
       /* Push a character from the ethernet interface into the buffer */
       for(i = 0 ; i < bufLen; i++) {
         buffer[i] = buffer[i+1];
       }
-      buffer[i] = client.read();
+      buffer[i] = client->read();
       
       
       /* Ignore what we've read if it's an empty string */
       if(!strlen(buffer)) {
         continue;
       } else {
-         //Serial.println(buffer);
+         Serial.println(buffer);
       }
       
       for(int i = 0; i < connTableSize; i++) {
@@ -278,7 +272,7 @@ void XMPPClient::processInput() {
 	  */
           
           state = connTable[i].nextState;
-          client.flush();
+          client->flush();
           stateChanged = true;
           break;
         }
@@ -288,3 +282,5 @@ void XMPPClient::processInput() {
     }
   }
 }
+
+XMPPClientClass XMPPClient;
