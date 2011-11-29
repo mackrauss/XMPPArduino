@@ -12,10 +12,8 @@ XMPPClient	KEYWORD1
 # Methods and Functions (KEYWORD2)
 #######################################
 
-connect 		KEYWORD2
-maintain		KEYWORD2
-close 			KEYWORD2
-end				KEYWORD2
+connect 	KEYWORD2
+close 	KEYWORD2
 sendPresence 	KEYWORD2
 sendMessage 	KEYWORD2
 
