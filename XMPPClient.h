@@ -48,7 +48,6 @@ class XMPPClient {
 	int sendPresence();
 	
 	char * receiveMessage();
-	char * please();
 
 	int close();
 

@@ -176,7 +176,7 @@ int XMPPClient::sendPresence() {
 }
 
 
-char * XMPPClient::please() {
+char * XMPPClient::receiveMessage() {
 	int bufLen = 1000;
 	int msgLen = 100;
 	char buffer[bufLen];
