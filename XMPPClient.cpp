@@ -81,6 +81,7 @@ void strcpyuntil(char *dest, char *src, char *end) {
 /*****************/
 
 int XMPPClient::xmppLogin(char *server, char *username, char *password, char *resource, byte *macAddress) {
+  int ret;
     // todo, make mac address optional
   boolean connected = false, error = false;
   this->username = username;
@@ -106,19 +107,18 @@ int XMPPClient::xmppLogin(char *server, char *username, char *password, char *re
     Serial.println(server);
   }
 
-
   while(!connected) {
+    ret = stateAction();
 
-   int ret;
-   ret = stateAction();
-
-   if (state == READY) {
+    if (state == READY) {
       connected = true;
       continue;
-   }
+    }
 
-   processInput();
- }
+    processInput();
+  }
+
+  return 1;
 }
 
 
@@ -145,7 +145,8 @@ int XMPPClient::authenticate(char *username, char *password) {
    sendTemplate(plain_auth_template, encStringLen, encString);
  }
 
- int XMPPClient::bindResource(char *resource) {
+
+int XMPPClient::bindResource(char *resource) {
   sendTemplate(bind_template, strlen(resource), resource);
 }
 
@@ -168,38 +169,46 @@ char * XMPPClient::receiveMessage() {
 	char buffer[bufLen];
 	char msg[100] = "";
 	int nChar = available();
-	if (nChar > 0 && nChar < bufLen) {
-		int i = 0;
-		for(i = 0 ; i < nChar; i++)
+	
+  if (nChar > 0 && nChar < bufLen) {
+		for(int i = 0 ; i < nChar; i++) {
 			buffer[i] = read();
+    }
+
 		// Terminate the string
 		buffer[nChar] = '\0';
+
     if(!strlen(buffer)) {
  			//Ignore what we've read if it's an empty string
-    } else {
+    }
+    else {
  			// Check that what we received is a message
       char tag1[] = "<message";
       char buf2[9];
       strncpy(buf2, buffer, 8);
       buf2[8] = '\0';
+
       if (strcmp(tag1, buf2) != 0) {
  				// Ignore what we received
-      } else {
+      }
+      else {
  				// Parse the message
         char *startIndex = strstr(buffer, "<body>");
         startIndex = startIndex + 6;
         char *ptrMsg;
-        ptrMsg = msg; 
+        ptrMsg = msg;
+
         while (*startIndex != '<') {
-         *ptrMsg = *startIndex;
-         ptrMsg++;
-         startIndex++;
-       }
-       *ptrMsg = '\0';
-     }
-   }
- }
- return msg;
+          *ptrMsg = *startIndex;
+          ptrMsg++;
+          startIndex++;
+        }
+
+        *ptrMsg = '\0';
+      }
+    }
+  }
+  return msg;
 }
 
 int XMPPClient::close() {
@@ -223,36 +232,36 @@ int XMPPClient::sendTemplate(const prog_char *temp_P, int fillLen, ...) {
 
 int XMPPClient::stateAction() {
  
- Serial.print("State = ");
- Serial.println(state);
+  Serial.print("State = ");
+  Serial.println(state);
 
- switch(state) {
-  case INIT:
-  openStream(server);
-  break;
-  case AUTH:
-  authenticate(username, password);
-  break;
-  case AUTH_STREAM:
-  openStream(server);
-  break;
-  case BIND:
-  bindResource(resource);
-  break;
-  case SESS:
-  openSession(server);
-  sendPresence();
-  break;
-  case READY:
-  return 1;
-  break;
-  case WAIT:
-  break;
-  default:
-  return -1;
-  break;
-}
-return 0;
+  switch(state) {
+    case INIT:
+      openStream(server);
+      break;
+    case AUTH:
+      authenticate(username, password);
+      break;
+    case AUTH_STREAM:
+      openStream(server);
+      break;
+    case BIND:
+      bindResource(resource);
+      break;
+    case SESS:
+      openSession(server);
+      break;
+    case READY:
+      sendPresence();
+      return 1;
+      break;
+    case WAIT:
+      break;
+    default:
+      return -1;
+      break;
+  }
+  return 0;
 }
 
 void XMPPClient::processInput() {
@@ -289,14 +298,14 @@ void XMPPClient::processInput() {
       for(int i = 0; i < connTableSize; i++) {
         if(state == connTable[i].currentState && strstr(buffer,connTable[i].keyword)) {
 
-	  /*
+	  
           Serial.println(buffer);
           Serial.println(connTable[i].keyword);
           Serial.println((int)strstr(buffer, connTable[i].keyword)); 
           
           Serial.print(connTable[i].keyword);
           Serial.println(" seen, transitioning");
-	  */
+	  
           
           state = connTable[i].nextState;
           flush();
