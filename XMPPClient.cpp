@@ -61,7 +61,7 @@ XMPPTransitionTableEntry connTable[] = {{INIT, AUTH, "PLAIN"},
 {AUTH, AUTH_STREAM, "success"},
 {AUTH_STREAM, BIND, "bind"},
 {BIND, SESS, "jid"},
-{SESS, READY, "session"},
+{SESS, READY, "result"},
 {READY, WAIT, ""},
 {WAIT, WAIT, ""}};
 
@@ -151,6 +151,8 @@ int XMPPClient::bindResource(char *resource) {
 }
 
 int XMPPClient::openSession(char *server) {
+  // Serial.print("Trying to open session to: ");
+  // Serial.println(server);
   sendTemplate(session_request_template, strlen(server), server);
 }
 
@@ -171,6 +173,7 @@ char * XMPPClient::receiveMessage() {
 	int nChar = available();
 	
   if (nChar > 0 && nChar < bufLen) {
+    Serial.println("receiveMessage called");
 		for(int i = 0 ; i < nChar; i++) {
 			buffer[i] = read();
     }
@@ -190,6 +193,7 @@ char * XMPPClient::receiveMessage() {
 
       if (strcmp(tag1, buf2) != 0) {
  				// Ignore what we received
+        Serial.println("Received something that is not a message");
       }
       else {
  				// Parse the message
@@ -252,7 +256,6 @@ int XMPPClient::stateAction() {
       openSession(server);
       break;
     case READY:
-      sendPresence();
       return 1;
       break;
     case WAIT:
@@ -292,19 +295,18 @@ void XMPPClient::processInput() {
       if(!strlen(buffer)) {
         continue;
       } else {
-         //Serial.println(buffer);
+        //Serial.println(buffer);
       }
       
       for(int i = 0; i < connTableSize; i++) {
         if(state == connTable[i].currentState && strstr(buffer,connTable[i].keyword)) {
 
-	  
-          Serial.println(buffer);
+          /*Serial.println(buffer);
           Serial.println(connTable[i].keyword);
           Serial.println((int)strstr(buffer, connTable[i].keyword)); 
           
           Serial.print(connTable[i].keyword);
-          Serial.println(" seen, transitioning");
+          Serial.println(" seen, transitioning");*/
 	  
           
           state = connTable[i].nextState;
